@@ -12,6 +12,8 @@ public class KeyValue {
     private String type;
     private List<BodyFile> files;
     private String description;
+    private String contentType;
+    private boolean enable;
 
     public KeyValue() {
     }

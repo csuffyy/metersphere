@@ -22,11 +22,12 @@
           </el-col>
 
           <el-col :span="11" :offset="2">
-            <el-form-item :label="$t('test_track.plan.plan_project')" :label-width="formLabelWidth" prop="projectId">
+            <el-form-item :label="$t('test_track.plan.plan_project')" :label-width="formLabelWidth" prop="projectIds">
               <el-select
-                :disabled="(form.status == null) ? false : true"
-                v-model="form.projectId"
+                v-model="form.projectIds"
                 :placeholder="$t('test_track.plan.input_plan_project')"
+                multiple
+                style="width: 100%"
                 filterable>
                 <el-option
                   v-for="item in projects"
@@ -67,8 +68,30 @@
           </el-col>
         </el-row>
 
+        <!--start:xuxm增加自定义‘计划开始’，‘计划结束’时间字段-->
+        <el-row>
+          <el-col :span="8" :offset="1">
+            <el-form-item
+              :label="$t('test_track.plan.planned_start_time')"
+              :label-width="formLabelWidth"
+              prop="plannedStartTime">
+              <el-date-picker :placeholder="$t('test_track.plan.planned_start_time')" v-model="form.plannedStartTime" type="datetime" value-format="timestamp"></el-date-picker>
+            </el-form-item>
+          </el-col>
+
+          <el-col :span="11" :offset="2">
+            <el-form-item
+              :label="$t('test_track.plan.planned_end_time')"
+              :label-width="formLabelWidth"
+              prop="plannedEndTime">
+              <el-date-picker :placeholder="$t('test_track.plan.planned_end_time')" v-model="form.plannedEndTime" type="datetime" value-format="timestamp" ></el-date-picker>
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <!--end:xuxm增加自定义‘计划开始’，‘计划结束’时间字段-->
+
         <el-row type="flex" justify="left" style="margin-top: 10px;">
-          <el-col :span="19" :offset="1">
+          <el-col :span="23" :offset="1">
             <el-form-item :label="$t('commons.description')" :label-width="formLabelWidth" prop="description">
               <el-input v-model="form.description"
                         type="textarea"
@@ -124,17 +147,20 @@ export default {
       dialogFormVisible: false,
       form: {
         name: '',
-        projectId: '',
+        projectIds: [],
         principal: '',
         stage: '',
-        description: ''
+        description: '',
+        plannedStartTime: '',
+        plannedEndTime: ''
       },
+      dbProjectIds: [],
       rules: {
         name: [
           {required: true, message: this.$t('test_track.plan.input_plan_name'), trigger: 'blur'},
           {max: 30, message: this.$t('test_track.length_less_than') + '30', trigger: 'blur'}
         ],
-        projectId: [{required: true, message: this.$t('test_track.plan.input_plan_project'), trigger: 'change'}],
+        projectIds: [{required: true, message: this.$t('test_track.plan.input_plan_project'), trigger: 'change'}],
         principal: [{required: true, message: this.$t('test_track.plan.input_plan_principal'), trigger: 'change'}],
         stage: [{required: true, message: this.$t('test_track.plan.input_plan_stage'), trigger: 'change'}],
         description: [{max: 200, message: this.$t('test_track.length_less_than') + '200', trigger: 'blur'}]
@@ -157,6 +183,7 @@ export default {
         let tmp = {};
         Object.assign(tmp, testPlan);
         Object.assign(this.form, tmp);
+        this.dbProjectIds = JSON.parse(JSON.stringify(this.form.projectIds));
       }
       listenGoBack(this.close);
       this.dialogFormVisible = true;
@@ -172,16 +199,42 @@ export default {
             return;
           }
           param.workspaceId = localStorage.getItem(WORKSPACE_ID);
-          this.$post('/test/plan/' + this.operationType, param, () => {
-            this.$success(this.$t('commons.save_success'));
-            this.dialogFormVisible = false;
-            this.$emit("refresh");
-            // 发送广播，刷新 head 上的最新列表
-            TrackEvent.$emit(LIST_CHANGE);
-          });
+
+          if (this.operationType === 'edit') {
+            const nowIds = param.projectIds;
+            let sign = true;
+            this.dbProjectIds.forEach(dbId => {
+              if (nowIds.indexOf(dbId) === -1 && sign) {
+                sign = false;
+                this.$confirm('取消项目关联会同时取消该项目下已关联的测试用例', '提示', {
+                  confirmButtonText: this.$t('commons.confirm'),
+                  cancelButtonText: this.$t('commons.cancel'),
+                  type: 'warning'
+                }).then(() => {
+                  this.editTestPlan(param);
+                }).catch(() => {
+                  this.$info(this.$t('commons.cancel'))
+                });
+              }
+            });
+            if (sign) {
+              this.editTestPlan(param);
+            }
+          } else {
+            this.editTestPlan(param);
+          }
         } else {
           return false;
         }
+      });
+    },
+    editTestPlan(param) {
+      this.$post('/test/plan/' + this.operationType, param, () => {
+        this.$success(this.$t('commons.save_success'));
+        this.dialogFormVisible = false;
+        this.$emit("refresh");
+        // 发送广播，刷新 head 上的最新列表
+        TrackEvent.$emit(LIST_CHANGE);
       });
     },
     getProjects() {
@@ -213,11 +266,13 @@ export default {
         this.$refs['planFrom'].validate((valid) => {
           this.$refs['planFrom'].resetFields();
           this.form.name = '';
-          this.form.projectId = '';
+          this.form.projectIds = [];
           this.form.principal = '';
           this.form.stage = '';
           this.form.description = '';
           this.form.status = null;
+          this.form.plannedStartTime = null;
+          this.form.plannedEndTime = null;
           return true;
         });
       }

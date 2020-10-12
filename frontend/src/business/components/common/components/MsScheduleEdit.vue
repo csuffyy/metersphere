@@ -1,88 +1,94 @@
 <template>
-  <el-dialog :close-on-click-modal="false" width="70%" class="schedule-edit" :visible.sync="dialogVisible"
+  <el-dialog :close-on-click-modal="false" width="60%" class="schedule-edit" :visible.sync="dialogVisible"
              @close="close">
-    <el-tabs v-model="activeName" @tab-click="handleClick">
-      <el-tab-pane :label="$t('schedule.edit_timer_task')" name="first">
-        <el-form :model="form" :rules="rules" ref="from">
-          <el-form-item
-            prop="cronValue">
-            <el-input :disabled="isReadOnly" v-model="form.cronValue" class="inp"
-                      :placeholder="$t('schedule.please_input_cron_expression')"/>
-            <!--          <el-button type="primary" @click="showCronDialog">{{$t('schedule.generate_expression')}}</el-button>-->
-            <el-button :disabled="isReadOnly" type="primary" @click="saveCron">{{ $t('commons.save') }}</el-button>
-          </el-form-item>
-          <el-form-item>
-            <el-link :disabled="isReadOnly" type="primary" @click="showCronDialog">
-              {{ $t('schedule.generate_expression') }}
-            </el-link>
-          </el-form-item>
-          <crontab-result :ex="form.cronValue" ref="crontabResult"/>
-        </el-form>
-        <el-dialog :title="$t('schedule.generate_expression')" width="70%" :visible.sync="showCron" :modal="false">
-          <crontab @hide="showCron=false" @fill="crontabFill" :expression="schedule.value" ref="crontab"/>
-        </el-dialog>
-      </el-tab-pane>
-      <el-tab-pane :label="$t('schedule.task_notification')" name="second">
-        <template>
-          <el-table
-            :data="tableData"
-            style="width: 100%">
-            <el-table-column
-              prop="event"
-              :label="$t('schedule.event')"
-            >
-            </el-table-column>
-            <el-table-column
-              prop="receiver"
-              :label="$t('schedule.receiver')"
-              width="200"
-            >
-              <template v-slot:default="{row}">
-                <el-input
-                  size="mini"
-                  type="textarea"
-                  :rows="1"
-                  class="edit-input"
-                  v-model="row.receiver"
-                  :placeholder="$t('schedule.receiver')"
-                  clearable>
-                </el-input>
-              </template>
-            </el-table-column>
-            <el-table-column
-              prop="email"
-              :label="$t('schedule.receiving_mode')"
-              width="300">
-              <template v-slot:default="{row}">
-                <el-input
-                  size="mini"
-                  type="textarea"
-                  :rows="1"
-                  class="edit-input"
-                  v-model="row.email"
-                  :placeholder="$t('schedule.input_email')"
-                  clearable>
-                </el-input>
-              </template>
-            </el-table-column>
-            <el-table-column
-              align="center"
-              :label="$t('schedule.operation')"
-              show-overflow-tooltip>
-              <template slot-scope="scope">
-                <el-switch
-                  v-model="scope.row.status"
-                  :active-value="1"
-                  :inactive-value="2"
-                  active-color="#13ce66"
-                  inactive-color="#ff4949"
-                />
-              </template>
-            </el-table-column>
-          </el-table>
-        </template>
-      </el-tab-pane>
-    </el-tabs>
+    <template>
+      <div>
+        <el-tabs v-model="activeName" @tab-click="handleClick">
+
+          <el-tab-pane :label="$t('schedule.edit_timer_task')" name="first">
+            <el-form :model="form" :rules="rules" ref="from">
+              <el-form-item
+                prop="cronValue">
+                <el-input :disabled="isReadOnly" v-model="form.cronValue" class="inp"
+                          :placeholder="$t('schedule.please_input_cron_expression')"/>
+                <!--          <el-button type="primary" @click="showCronDialog">{{$t('schedule.generate_expression')}}</el-button>-->
+                <el-button :disabled="isReadOnly" type="primary" @click="saveCron">{{
+                    $t('commons.save')
+                  }}
+                </el-button>
+              </el-form-item>
+              <el-form-item>
+                <el-link :disabled="isReadOnly" type="primary" @click="showCronDialog">
+                  {{ $t('schedule.generate_expression') }}
+                </el-link>
+              </el-form-item>
+              <crontab-result :ex="form.cronValue" ref="crontabResult"/>
+            </el-form>
+            <el-dialog width="60%" :title="$t('schedule.generate_expression')" :visible.sync="showCron"
+                       :modal="false">
+              <crontab @hide="showCron=false" @fill="crontabFill" :expression="schedule.value"
+                       ref="crontab"/>
+            </el-dialog>
+          </el-tab-pane>
+          <el-tab-pane :label="$t('schedule.task_notification')" name="second">
+            <template>
+              <el-table
+                :data="tableData"
+                style="width: 100%">
+                <el-table-column
+                  prop="event"
+                  :label="$t('schedule.event')">
+                  <template v-slot:default="{row}">
+                    <span v-if="row.event === 'EXECUTE_SUCCESSFUL'"> {{ $t('schedule.event_success') }}</span>
+                    <span v-else-if="row.event === 'EXECUTE_FAILED'"> {{ $t('schedule.event_failed') }}</span>
+                    <span v-else>{{ row.event }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column
+                  prop="name"
+                  :label="$t('schedule.receiver')"
+                  width="240"
+                >
+                  <template v-slot:default="{row}">
+                    <el-select v-model="row.userIds" filterable multiple
+                               :placeholder="$t('commons.please_select')"
+                               @click.native="userList()" style="width: 100%;">
+                      <el-option
+                        v-for="item in options"
+                        :key="item.id"
+                        :label="item.name"
+                        :value="item.id">
+                      </el-option>
+                    </el-select>
+                  </template>
+                </el-table-column>
+                <el-table-column
+                  prop="type"
+                  :label="$t('schedule.receiving_mode')"
+                >
+                </el-table-column>
+                <el-table-column
+                  :label="$t('test_resource_pool.enable_disable')"
+                  prop="enable"
+                >
+                  <template v-slot:default="{row}">
+                    <el-switch
+                      v-model="row.enable"
+                      active-value="true"
+                      inactive-value="false"
+                      inactive-color="#DCDFE6"
+                    />
+                  </template>
+                </el-table-column>
+              </el-table>
+              <div style="padding-top: 20px;">
+                <el-button type="primary" @click="saveNotice">{{ $t('commons.save') }}</el-button>
+              </div>
+            </template>
+          </el-tab-pane>
+        </el-tabs>
+      </div>
+    </template>
   </el-dialog>
 </template>
 
@@ -101,6 +107,7 @@ export default {
   name: "MsScheduleEdit",
   components: {CrontabResult, Crontab},
   props: {
+    testId: String,
     save: Function,
     schedule: {},
     customValidate: {
@@ -110,8 +117,10 @@ export default {
     isReadOnly: {
       type: Boolean,
       default: false
-    }
+    },
   },
+
+
   watch: {
     'schedule.value'() {
       this.form.cronValue = this.schedule.value;
@@ -143,19 +152,21 @@ export default {
       },
       tableData: [
         {
-          event: '执行成功',
-          receiver: '',
-          email: '',
-          operation: 1
-        }, {
-          event: '执行成功',
-          receiver: '',
-          email: '',
-          operation: 2
+          event: "EXECUTE_SUCCESSFUL",
+          type: "EMAIL",
+          userIds: [],
+          enable: false
+        },
+        {
+          event: "EXECUTE_FAILED",
+          type: "EMAIL",
+          userIds: [],
+          enable: false
         }
       ],
-      email: "",
+      options: [{}],
       enable: true,
+      type: "",
       activeName: 'first',
       rules: {
         cronValue: [{required: true, validator: validateCron, trigger: 'blur'}],
@@ -163,13 +174,40 @@ export default {
     }
   },
   methods: {
+    userList() {
+      this.result = this.$get('user/list', response => {
+        this.options = response.data
+      })
+    },
     handleClick() {
+      if (this.activeName === "second") {
+        this.result = this.$get('notice/query/' + this.testId, response => {
+          if (response.data.length > 0) {
+            this.tableData = response.data
 
+            this.tableData[0].event = "EXECUTE_SUCCESSFUL"
+            this.tableData[0].type = "EMAIL"
+            this.tableData[1].event = "EXECUTE_FAILED"
+            this.tableData[1].type = "EMAIL"
+          } else {
+            this.tableData[0].userIds = []
+            this.tableData[1].userIds = []
+          }
+        })
+      }
+    },
+    buildParam() {
+      let param = {};
+      param.notices = this.tableData
+      param.testId = this.testId
+      return param;
     },
     open() {
       this.dialogVisible = true;
       this.form.cronValue = this.schedule.value;
       listenGoBack(this.close);
+      this.handleClick()
+      this.activeName = 'first'
     },
     crontabFill(value, resultList) {
       //确定后回传的值
@@ -190,6 +228,12 @@ export default {
           return false;
         }
       });
+    },
+    saveNotice() {
+      let param = this.buildParam();
+      this.result = this.$post("notice/save", param, () => {
+        this.$success(this.$t('commons.save_success'));
+      })
     },
     close() {
       this.dialogVisible = false;
@@ -230,5 +274,11 @@ export default {
 .el-form-item {
   margin-bottom: 10px;
 }
+
+/deep/ .el-select__tags {
+  flex-wrap: unset;
+  overflow: auto;
+}
+
 
 </style>

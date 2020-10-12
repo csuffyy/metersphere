@@ -1,5 +1,5 @@
 <template>
-  <el-form :model="request" :rules="rules" ref="request" label-width="100px">
+  <el-form :model="request" :rules="rules" ref="request" label-width="100px" :disabled="isReadOnly">
 
     <el-form-item :label="$t('api_test.request.name')" prop="name">
       <el-input :disabled="isReadOnly" v-model="request.name" maxlength="300" show-word-limit/>
@@ -26,10 +26,10 @@
 
     <el-form-item v-if="request.useEnvironment" :label="$t('api_test.request.address')" class="adjust-margin-bottom">
       <el-tag class="environment-display">
-        <span class="environment-name">{{ request.environment ? request.environment.name + ': ' : '' }}</span>
+        <span class="environment-name">{{ scenario.environment ? scenario.environment.name + ': ' : '' }}</span>
         <span class="environment-url">{{ displayUrl }}</span>
         <span v-if="!displayUrl"
-              class="environment-url-tip">{{ $t('api_test.request.please_configure_environment_in_scenario') }}</span>
+              class="environment-url-tip">{{ $t('api_test.request.please_configure_socket_in_environment') }}</span>
       </el-tag>
     </el-form-item>
 
@@ -41,26 +41,28 @@
       <el-checkbox class="follow-redirects-item" v-model="request.followRedirects">{{$t('api_test.request.follow_redirects')}}</el-checkbox>
     </el-form-item>
 
-    <el-button :disabled="!request.enable || !scenario.enable || isReadOnly" class="debug-button" size="small" type="primary" @click="runDebug">{{ $t('api_test.request.debug') }}</el-button>
+    <el-button :disabled="!request.enable || !scenario.enable || isReadOnly" class="debug-button" size="small"
+               type="primary" @click="runDebug">{{ $t('api_test.request.debug') }}
+    </el-button>
 
     <el-tabs v-model="activeName">
       <el-tab-pane :label="$t('api_test.request.parameters')" name="parameters">
         <ms-api-variable :is-read-only="isReadOnly"
                          :parameters="request.parameters"
-                         :environment="request.environment"
+                         :environment="scenario.environment"
                          :scenario="scenario"
                          :extract="request.extract"
                          :description="$t('api_test.request.parameters_desc')"/>
       </el-tab-pane>
       <el-tab-pane :label="$t('api_test.request.headers')" name="headers">
-        <ms-api-key-value :is-read-only="isReadOnly" :suggestions="headerSuggestions" :items="request.headers"/>
+        <ms-api-key-value :is-read-only="isReadOnly" :isShowEnable="true" :suggestions="headerSuggestions" :items="request.headers"/>
       </el-tab-pane>
-      <el-tab-pane :label="$t('api_test.request.body')" name="body" v-if="isNotGet">
+      <el-tab-pane :label="$t('api_test.request.body')" name="body">
         <ms-api-body :is-read-only="isReadOnly"
                      :body="request.body"
                      :scenario="scenario"
                      :extract="request.extract"
-                     :environment="request.environment"/>
+                     :environment="scenario.environment"/>
       </el-tab-pane>
       <el-tab-pane :label="$t('api_test.request.assertions.label')" name="assertions">
         <ms-api-assertions :is-read-only="isReadOnly" :assertions="request.assertions"/>
@@ -68,11 +70,11 @@
       <el-tab-pane :label="$t('api_test.request.extract.label')" name="extract">
         <ms-api-extract :is-read-only="isReadOnly" :extract="request.extract"/>
       </el-tab-pane>
-      <el-tab-pane :label="$t('api_test.request.processor.pre_exec_script')" name="beanShellPreProcessor">
-        <ms-bean-shell-processor :is-pre-processor="true" :is-read-only="isReadOnly" :bean-shell-processor="request.beanShellPreProcessor"/>
+      <el-tab-pane :label="$t('api_test.request.processor.pre_exec_script')" name="jsr223PreProcessor">
+        <ms-jsr233-processor :is-read-only="isReadOnly" :jsr223-processor="request.jsr223PreProcessor"/>
       </el-tab-pane>
-      <el-tab-pane :label="$t('api_test.request.processor.post_exec_script')" name="beanShellPostProcessor">
-        <ms-bean-shell-processor :is-read-only="isReadOnly" :bean-shell-processor="request.beanShellPostProcessor"/>
+      <el-tab-pane :label="$t('api_test.request.processor.post_exec_script')" name="jsr223PostProcessor">
+        <ms-jsr233-processor :is-read-only="isReadOnly" :jsr223-processor="request.jsr223PostProcessor"/>
       </el-tab-pane>
       <el-tab-pane :label="$t('api_test.request.timeout_config')" name="advancedConfig">
         <ms-api-advanced-config :is-read-only="isReadOnly" :request="request"/>
@@ -90,14 +92,14 @@ import MsApiExtract from "../extract/ApiExtract";
 import ApiRequestMethodSelect from "../collapse/ApiRequestMethodSelect";
 import {REQUEST_HEADERS} from "@/common/js/constants";
 import MsApiVariable from "@/business/components/api/test/components/ApiVariable";
-import MsBeanShellProcessor from "../processor/BeanShellProcessor";
+import MsJsr233Processor from "../processor/Jsr233Processor";
 import MsApiAdvancedConfig from "../ApiAdvancedConfig";
 
 export default {
   name: "MsApiHttpRequestForm",
   components: {
+    MsJsr233Processor,
     MsApiAdvancedConfig,
-    MsBeanShellProcessor,
     MsApiVariable, ApiRequestMethodSelect, MsApiExtract, MsApiAssertions, MsApiBody, MsApiKeyValue},
   props: {
     request: HttpRequest,
@@ -146,7 +148,7 @@ export default {
       if (!this.request.path) return;
       let url = this.getURL(this.displayUrl);
       let urlStr = url.origin + url.pathname;
-      let envUrl = this.request.environment.protocol + '://' + this.request.environment.socket;
+      let envUrl = this.scenario.environment.config.httpConfig.protocol + '://' + this.scenario.environment.config.httpConfig.socket;
       this.request.path = decodeURIComponent(urlStr.substring(envUrl.length, urlStr.length));
     },
     getURL(urlStr) {
@@ -154,7 +156,7 @@ export default {
         let url = new URL(urlStr);
         url.searchParams.forEach((value, key) => {
           if (key && value) {
-            this.request.parameters.splice(0, 0, new KeyValue(key, value));
+            this.request.parameters.splice(0, 0, new KeyValue({name: key, value: value}));
           }
         });
         return url;
@@ -168,7 +170,7 @@ export default {
       }
     },
     useEnvironmentChange(value) {
-      if (value && !this.request.environment) {
+      if (value && !this.scenario.environment) {
         this.$error(this.$t('api_test.request.please_add_environment_to_scenario'), 2000);
         this.request.useEnvironment = false;
       }
@@ -188,11 +190,10 @@ export default {
   },
 
   computed: {
-    isNotGet() {
-      return this.request.method !== "GET";
-    },
     displayUrl() {
-      return this.request.environment ? this.request.environment.protocol + '://' + this.request.environment.socket + (this.request.path ? this.request.path : '') : '';
+      return (this.scenario.environment && this.scenario.environment.config.httpConfig.socket) ?
+        this.scenario.environment.config.httpConfig.protocol + '://' + this.scenario.environment.config.httpConfig.socket + (this.request.path ? this.request.path : '')
+        : '';
     }
   }
 }

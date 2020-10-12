@@ -11,6 +11,8 @@ import org.apache.jmeter.save.SaveService;
 import org.apache.jmeter.util.JMeterUtils;
 import org.apache.jmeter.visualizers.backend.BackendListener;
 import org.apache.jorphan.collections.HashTree;
+import org.python.core.Options;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
@@ -30,11 +32,17 @@ public class JMeterService {
         String JMETER_PROPERTIES = JMETER_HOME + "/bin/jmeter.properties";
         JMeterUtils.loadJMeterProperties(JMETER_PROPERTIES);
         JMeterUtils.setJMeterHome(JMETER_HOME);
+        JMeterUtils.setLocale(LocaleContextHolder.getLocale());
+
+
+        //解决无法加载 PyScriptEngineFactory
+        Options.importSite = false;
+
         try {
             Object scriptWrapper = SaveService.loadElement(is);
             HashTree testPlan = getHashTree(scriptWrapper);
+            JMeterVars.addJSR223PostProcessor(testPlan);
             addBackendListener(testId, debugReportId, testPlan);
-
             LocalRunner runner = new LocalRunner(testPlan);
             runner.run();
         } catch (Exception e) {
